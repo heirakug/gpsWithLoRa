@@ -124,6 +124,7 @@ void loop() {
     doc["Longitude"] = Lon;
     doc["DATA"] = Utc;
     serializeJson(doc, sendloratext);
+    LoRaCommand(sendloratext);
     // writeLog(filename);
     prev += interval;  // 前回実行時刻に実行周期を加算
   }
