@@ -94,7 +94,8 @@ void setup() {
   // //M5.dis.fillpix(0x00004f);
   // M5.Lcd.fillScreen(0x00004f);
 
-  Serial1.begin(9600, SERIAL_8N1, 22, -1); //gps unit
+  //Serial1.begin(9600, SERIAL_8N1, 22, -1); //gps unit
+  Serial1.begin(19200, SERIAL_8N1, 22, -1); //gps unit
   SerialBT.begin(chipname);
   GPS.setTaskName("GPS");
   GPS.setTaskPriority(2);
