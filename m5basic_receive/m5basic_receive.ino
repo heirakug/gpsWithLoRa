@@ -5,12 +5,12 @@
 // reference : sample >> http://ikkei.akiba.coocan.jp/ikkei_Electronics/UNIT_LR3.html
 
 //
-//  920MHz LoRa/FSK RF module ES920LR3 
+//  920MHz LoRa/FSK RF module ES920LR3
 //  receive data display
 //
 //  MaiaR Create 2022/06/05
 //  add RSSI 2023/01/20
-//  
+//
 //
 //  対応機種　Applicable model
 //  * M5Stack Core     with LoRa Module/LoRa UNIT
@@ -24,7 +24,7 @@
 
 #include <M5Unified.h>
 
-#define VIA_GROVE // LoRa UNITを使用する場合は先頭の//を削除
+#define VIA_GROVE  // LoRa UNITを使用する場合は先頭の//を削除
 
 // 以下は機種に合わせてコメントアウトを解除してください
 
@@ -37,15 +37,15 @@
 #define SY 35
 #define SR 15
 #ifdef VIA_GROVE
-#define RX_pin 22 // LoRa UNIT via GROVE
-#define TX_pin 21 // LoRa UNIT via GROVE
-#define RESET_pin -1 // No RESET Pin
-#define BOOT_pin -1  // No Boot Pin
+#define RX_pin 22     // LoRa UNIT via GROVE
+#define TX_pin 21     // LoRa UNIT via GROVE
+#define RESET_pin -1  // No RESET Pin
+#define BOOT_pin -1   // No Boot Pin
 #else
-#define RX_pin 16 // stack LoRa MODULE
-#define TX_pin 17 // stack LoRa MODULE
-#define RESET_pin 13 // stack LoRa MODULE
-#define BOOT_pin 22  // stack LoRa MODULE
+#define RX_pin 16     // stack LoRa MODULE
+#define TX_pin 17     // stack LoRa MODULE
+#define RESET_pin 13  // stack LoRa MODULE
+#define BOOT_pin 22   // stack LoRa MODULE
 #endif
 
 //// * M5Stack Core2    with LoRa Module / LoRa UNIT
@@ -127,6 +127,13 @@
 
 
 #include "LoRa.h"
+#include <ArduinoJson.h>
+
+StaticJsonDocument<200> doc;
+
+float lat = -1;
+float lon = -1;
+float DATA = -1;
 
 void setup() {
   auto cfg = M5.config();
@@ -142,23 +149,30 @@ void setup() {
   M5.Lcd.println("Stand-by");
 }
 
-void loop(){
+void loop() {
   if (Serial2.available() > 0) {
     String rxs = Serial2.readString();
     Serial.print(rxs);
     char Buf[5];
     rxs.toCharArray(Buf, 5);
-    int16_t rssi = strtol(Buf,NULL,16);
+    int16_t rssi = strtol(Buf, NULL, 16);
     rxs = rxs.substring(4);
+
+    DeserializationError error = deserializeJson(doc, rxs);
+    if (error) Serial.println("Deserialization error.");
+    else {
+      lat = doc["Latitude"];
+      lon = doc["Longitude"];
+      DATA = doc["DATA"];
+    }
+
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.fillCircle(SX, SY, SR, GREEN);
     M5.Lcd.setCursor(0, 8);
-    if (rxs.length() > 12){
-      M5.Lcd.println("T:" + rxs.substring( 2, 6 ) + " 'C" );
-      M5.Lcd.println("H:" + rxs.substring( 8,12 ) + " %"  );
-      if (rxs.length() > 16){
-        M5.Lcd.println("P:" + rxs.substring(14,18 ) + " hPa");
-      }
+    if (rxs.length() > 12) {
+      M5.Lcd.println("Lat:" + String(lat));
+      M5.Lcd.println("Lon:" + String(lon));
+      M5.Lcd.println("DATA:" + String(DATA));
     } else {
       M5.Lcd.println(rxs);
     }
@@ -166,7 +180,7 @@ void loop(){
     M5.Lcd.print("R: ");
     M5.Lcd.print(rssi);
     M5.Lcd.print(" dB");
-    M5.Speaker.tone(4000, 100);
+    //M5.Speaker.tone(4000, 100);
     delay(400);
     M5.Lcd.fillCircle(SX, SY, SR, BLACK);
   }
