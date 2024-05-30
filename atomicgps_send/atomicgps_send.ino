@@ -1,9 +1,3 @@
-/*This is an example used SerialBT,you can can view gps data by connecting 
- * to Bluetooth assistant on your mobilephone or Serial Monitor
- * the GPS log will be written to SD card
- * 
- */
-
 //#include <M5Unified.h>
 
 #define VIA_GROVE  // LoRa UNITを使用する場合は先頭の//を削除
@@ -27,11 +21,8 @@
 #define BOOT_pin 22   // stack LoRa MODULE
 #endif
 
-
 #include "LoRa.h"
-
 #include "M5Atom.h"
-#include "GPSAnalyse.h"
 #include <SPI.h>
 #include "FS.h"
 #include <SD.h>
@@ -39,10 +30,9 @@
 #include <ArduinoJson.h>
 
 StaticJsonDocument<200> doc;
-static char sendloratext[100] = "";
+static char sendloratext[200] = "";
 
 BluetoothSerial SerialBT;
-GPSAnalyse GPS;
 
 uint64_t chipid;
 char chipname[256];
@@ -53,23 +43,6 @@ char chipname[256];
 float Lat;
 float Lon;
 String Utc;
-
-/*
-bool writeLog(String filename) {  //Write GPSdata to SDcard
-  txtFile = SD.open(filename, FILE_APPEND);
-  if (txtFile) {
-    txtFile.print(Lat);
-    txtFile.print(", ");
-    txtFile.print(Lon);
-    txtFile.print(", ");
-    txtFile.println(Utc);
-    txtFile.close();
-  } else {
-    return false;
-  }
-  return true;
-}
-*/
 
 unsigned long prev, next, interval;
 
@@ -82,27 +55,13 @@ void setup() {
   chipid = ESP.getEfuseMac();
   sprintf(chipname, "SerialBT_%04X", (uint16_t)(chipid >> 32));
   Serial.printf("Bluetooth: %s\n", chipname);
-  // SPI.begin(23, 33, 19, -1);
-  // if (!SD.begin(-1, SPI, 40000000)) {
-  //   Serial.println("initialization failed!");
-  // }
-  // sdcard_type_t Type = SD.cardType();
 
-  // Serial.printf("SDCard Type = %d \r\n", Type);
-  // Serial.printf("SDCard Size = %d \r\n", (int)(SD.cardSize() / 1024 / 1024));
-
-  // //M5.dis.fillpix(0x00004f);
-  // M5.Lcd.fillScreen(0x00004f);
-
-  //Serial1.begin(9600, SERIAL_8N1, 22, -1); //gps unit
-  Serial1.begin(19200, SERIAL_8N1, 22, -1); //gps unit
+  //Serial.begin(115200);
+  Serial1.begin(19200, SERIAL_8N1, 22, -1);
+  Serial.println(F("GPSを初期化しています..."));
   SerialBT.begin(chipname);
-  GPS.setTaskName("GPS");
-  GPS.setTaskPriority(2);
-  GPS.setSerialPtr(Serial1);
-  GPS.start();
 
-  prev = 0;        // 前回実行時刻を初期化
+  prev = 0;         // 前回実行時刻を初期化
   interval = 5000;  // 実行周期を設定 5秒ごと
 }
 
@@ -111,25 +70,34 @@ void loop() {
   unsigned long curr = millis();    // 現在時刻を取得
   if ((curr - prev) >= interval) {  // 前回実行時刻から実行周期以上経過していたら
     // do periodic tasks            // 周期処理を実行
-    GPS.upDate();
-    Lat = GPS.s_GNRMC.Latitude;
-    Lon = GPS.s_GNRMC.Longitude;
-    Utc = GPS.s_GNRMC.Utc;
-    SerialBT.printf("Latitude= %.5f \r\n", Lat);
-    SerialBT.printf("Longitude= %.5f \r\n", Lon);
-    SerialBT.printf("DATA= %s \r\n", Utc);
-    Serial.printf("Latitude= %.5f \r\n", Lat);
-    Serial.printf("Longitude= %.5f \r\n", Lon);
-    Serial.printf("DATA= %s \r\n", Utc);
-    doc["Latitude"] = Lat;
-    doc["Longitude"] = Lon;
-    doc["DATA"] = Utc;
-    serializeJson(doc, sendloratext);
+
+    while (Serial1.available() > 0) {
+      char c = Serial1.read();  // 1バイト読み込む
+      String data = Serial1.readStringUntil('\n');
+
+      // $GNRMCと$GNGGAと$GNGLLのNMEAデータをそれぞれの変数に格納
+      if (data.length() > 0) {
+        //Serial.println(data);
+        if (data.substring(0, 6) == "GNGGA,") {
+          // $GNGAAのNMEAデータを取得した場合、処理を行う
+          parseGGA(data);
+          data = "";
+        } else if (data.substring(0, 6) == "GNRMC,") {
+          // $GNRMCのNMEAデータを取得した場合、処理を行う
+          parseRMC(data);
+          data = "";
+        } else if (data.substring(0, 6) == "GNGLL,") {
+          // $GNGLLのNMEAデータを取得した場合、処理を行う
+          parseGLL(data);
+          data = "";
+        }
+      }
+    }
+
     LoRaCommand(sendloratext);
-    // writeLog(filename);
+
     prev += interval;  // 前回実行時刻に実行周期を加算
   }
-  // do other tasks                 // その他の処理を実行
 
   // LoRa receive
   if (Serial2.available() > 0) {
@@ -168,4 +136,134 @@ void loop() {
   }
 
   delay(100);
+}
+
+void parseGGA(String nmea) {
+  // GNGGAデータを解析し、必要な情報を取得
+  // ここで緯度、経度、海抜高度、ジオイド高度、UTC時刻を取得する処理を行う
+  // カンマ区切りで分割
+  int index = 0;
+  String data[13];
+  int start = 6;
+  for (int i = 0; i < 12; i++) {
+    int end = nmea.indexOf(',', start);
+    if (end == -1) end = nmea.length();
+    data[i] = nmea.substring(start, end);
+    start = end + 1;
+  }
+
+  // UTC時刻
+  String utc = data[0];
+
+  // 緯度と経度を取得し、度単位に変換
+  double latitude = parseCoordinateLat(data[1]);
+  double longitude = parseCoordinateLon(data[3]);
+  String elevation = data[8];
+  String geoseparation = data[10];
+
+  // UTC時刻と緯度と経度をシリアルモニタに表示
+  Serial.print(F("UTC: "));
+  Serial.print(utc);
+  Serial.print(F("緯度: "));
+  Serial.print(latitude, 8);
+  Serial.print(F(" 経度: "));
+  Serial.println(longitude, 6);
+  Serial.print(F("海抜高度: "));
+  Serial.print(elevation);
+  Serial.print(F(" ジオイド高: "));
+  Serial.println(geoseparation);
+  doc["Utc"] = Utc;
+  doc["Type"] = "GNGGA";
+  doc["Latitude"] = latitude;
+  doc["Longitude"] = longitude;
+  doc["Elevation"] = elevation;
+  doc["GeoSeparation"] = geoseparation;
+  serializeJson(doc, sendloratext);
+}
+
+void parseRMC(String nmea) {
+  // GNRMCデータを解析し、必要な情報を取得
+  // ここで緯度、経度、海抜高度、ジオイド高度、UTC時刻を取得する処理を行う
+  // カンマ区切りで分割
+  int index = 0;
+  String data[13];
+  int start = 6;
+  for (int i = 0; i < 12; i++) {
+    int end = nmea.indexOf(',', start);
+    if (end == -1) end = nmea.length();
+    data[i] = nmea.substring(start, end);
+    start = end + 1;
+  }
+
+  // UTC時刻
+  String utc = data[0];
+
+  // 緯度と経度を取得し、度単位に変換
+  double latitude = parseCoordinateLat(data[2]);
+  double longitude = parseCoordinateLon(data[4]);
+
+  // UTC時刻と緯度と経度をシリアルモニタに表示
+  Serial.print(F("UTC: "));
+  Serial.print(utc);
+  Serial.print(latitude, 8);
+  Serial.print(F("緯度: "));
+  Serial.print(latitude, 8);
+  Serial.print(F(" 経度: "));
+  Serial.println(longitude, 6);
+  doc["Utc"] = Utc;
+  doc["Type"] = "GNRMC";
+  doc["Latitude"] = latitude;
+  doc["Longitude"] = longitude;
+  serializeJson(doc, sendloratext);
+}
+
+void parseGLL(String nmea) {
+  // GNGLLデータを解析し、必要な情報を取得
+  // ここで緯度、経度、UTC時刻を取得する処理を行う
+  // カンマ区切りで分割
+  int index = 0;
+  String data[13];
+  int start = 6;
+  for (int i = 0; i < 12; i++) {
+    int end = nmea.indexOf(',', start);
+    if (end == -1) end = nmea.length();
+    data[i] = nmea.substring(start, end);
+    start = end + 1;
+  }
+
+  // UTC時刻
+  String utc = data[4];
+
+  // 緯度と経度を取得し、度単位に変換
+  double latitude = parseCoordinateLat(data[0]);
+  double longitude = parseCoordinateLon(data[2]);
+
+  // UTC時刻と緯度と経度をシリアルモニタに表示
+  Serial.print(F("UTC: "));
+  Serial.print(utc);
+  Serial.print(F("緯度: "));
+  Serial.print(latitude, 8);
+  Serial.print(F(" 経度: "));
+  Serial.println(longitude, 6);
+  doc["Utc"] = Utc;
+  doc["Type"] = "GNGLL";
+  doc["Latitude"] = latitude;
+  doc["Longitude"] = longitude;
+  serializeJson(doc, sendloratext);
+}
+
+double parseCoordinateLat(String coord) {
+  // 度と分に分割
+  int degree = coord.substring(0, 2).toInt();
+  double minute = coord.substring(2).toDouble();
+  // 度単位に変換
+  return degree + (minute / 60.0);
+}
+
+double parseCoordinateLon(String coord) {
+  // 度と分に分割
+  int degree = coord.substring(0, 3).toInt();
+  double minute = coord.substring(3).toDouble();
+  // 度単位に変換
+  return degree + (minute / 60.0);
 }
