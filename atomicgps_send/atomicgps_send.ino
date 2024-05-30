@@ -172,7 +172,7 @@ void parseGGA(String nmea) {
   Serial.print(elevation);
   Serial.print(F(" ジオイド高: "));
   Serial.println(geoseparation);
-  doc["Utc"] = Utc;
+  doc["Utc"] = utc;
   doc["Type"] = "GNGGA";
   doc["Latitude"] = latitude;
   doc["Longitude"] = longitude;
@@ -210,7 +210,7 @@ void parseRMC(String nmea) {
   Serial.print(latitude, 8);
   Serial.print(F(" 経度: "));
   Serial.println(longitude, 6);
-  doc["Utc"] = Utc;
+  doc["Utc"] = utc;
   doc["Type"] = "GNRMC";
   doc["Latitude"] = latitude;
   doc["Longitude"] = longitude;
@@ -245,7 +245,7 @@ void parseGLL(String nmea) {
   Serial.print(latitude, 8);
   Serial.print(F(" 経度: "));
   Serial.println(longitude, 6);
-  doc["Utc"] = Utc;
+  doc["Utc"] = utc;
   doc["Type"] = "GNGLL";
   doc["Latitude"] = latitude;
   doc["Longitude"] = longitude;
