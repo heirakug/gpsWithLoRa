@@ -31,7 +31,7 @@
 
 //// * M5Stack Core    with LoRa Module / LoRa UNIT
 #define ROT 1
-#define TSIZE 4
+#define TSIZE 2
 #define RPOS 180
 #define SX 270
 #define SY 35
@@ -133,7 +133,10 @@ StaticJsonDocument<200> doc;
 
 float lat = -1;
 float lon = -1;
-float DATA = -1;
+float utc = -1;
+float elv = -1;
+float gsp = -1;
+const char* type = "none";
 
 void setup() {
   auto cfg = M5.config();
@@ -161,18 +164,25 @@ void loop() {
     DeserializationError error = deserializeJson(doc, rxs);
     if (error) Serial.println("Deserialization error.");
     else {
-      lat = doc["Latitude"];
-      lon = doc["Longitude"];
-      DATA = doc["DATA"];
+      utc = doc["Utc"];
+      type = doc["Type"];
+      lat = doc["Lat"];
+      lon = doc["Lon"];
+      elv = doc["Elv"];
+      gsp = doc["Gsp"];
+      
     }
 
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.fillCircle(SX, SY, SR, GREEN);
     M5.Lcd.setCursor(0, 8);
     if (rxs.length() > 12) {
+      M5.Lcd.println("Utc:" + String(utc));
+      M5.Lcd.println("Type:" + String(type));
       M5.Lcd.println("Lat:" + String(lat));
       M5.Lcd.println("Lon:" + String(lon));
-      M5.Lcd.println("DATA:" + String(DATA));
+      M5.Lcd.println("Elv:" + String(elv));
+      M5.Lcd.println("Gsp:" + String(gsp));
     } else {
       M5.Lcd.println(rxs);
     }
