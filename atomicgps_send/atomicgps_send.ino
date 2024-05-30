@@ -29,8 +29,10 @@
 #include <BluetoothSerial.h>
 #include <ArduinoJson.h>
 
-StaticJsonDocument<200> doc;
-static char sendloratext[200] = "";
+StaticJsonDocument<200> doc_1;  //utc,type
+StaticJsonDocument<200> doc_2;  //lat,lon
+StaticJsonDocument<200> doc_3;  //evl,gsp
+static char sendloratext[100] = "";
 
 BluetoothSerial SerialBT;
 
@@ -94,10 +96,9 @@ void loop() {
       }
     }
 
-    LoRaCommand(sendloratext);
-
     prev += interval;  // 前回実行時刻に実行周期を加算
   }
+
 
   // LoRa receive
   if (Serial2.available() > 0) {
@@ -131,8 +132,16 @@ void loop() {
   // Lora send
   M5.update();
   if (M5.Btn.wasPressed()) {
+
+    serializeJson(doc_1, sendloratext);
     LoRaCommand(sendloratext);
-    delay(2000);
+    delay(5000);
+    serializeJson(doc_2, sendloratext);
+    LoRaCommand(sendloratext);
+    delay(5000);
+    serializeJson(doc_3, sendloratext);
+    LoRaCommand(sendloratext);
+    delay(5000);
   }
 
   delay(100);
@@ -172,13 +181,20 @@ void parseGGA(String nmea) {
   Serial.print(elevation);
   Serial.print(F(" ジオイド高: "));
   Serial.println(geoseparation);
-  doc["Utc"] = utc;
-  doc["Type"] = "GNGGA";
-  doc["Latitude"] = latitude;
-  doc["Longitude"] = longitude;
-  doc["Elevation"] = elevation;
-  doc["GeoSeparation"] = geoseparation;
-  serializeJson(doc, sendloratext);
+  doc_1["Utc"] = utc;
+  doc_1["Type"] = "GNGGA";
+  serializeJson(doc_1, sendloratext);
+  LoRaCommand(sendloratext);
+  delay(5000);
+  doc_2["Lat"] = latitude;
+  doc_2["Lon"] = longitude;
+  serializeJson(doc_2, sendloratext);
+  LoRaCommand(sendloratext);
+  delay(5000);
+  doc_3["Elv"] = elevation;
+  doc_3["Gsp"] = geoseparation;
+  serializeJson(doc_3, sendloratext);
+  LoRaCommand(sendloratext);
 }
 
 void parseRMC(String nmea) {
@@ -210,11 +226,14 @@ void parseRMC(String nmea) {
   Serial.print(latitude, 8);
   Serial.print(F(" 経度: "));
   Serial.println(longitude, 6);
-  doc["Utc"] = utc;
-  doc["Type"] = "GNRMC";
-  doc["Latitude"] = latitude;
-  doc["Longitude"] = longitude;
-  serializeJson(doc, sendloratext);
+  doc_1["Utc"] = utc;
+  doc_1["Type"] = "GNGGA";
+  serializeJson(doc_1, sendloratext);
+  LoRaCommand(sendloratext);
+  delay(5000);
+  doc_2["Lat"] = latitude;
+  doc_2["Lon"] = longitude;
+  serializeJson(doc_2, sendloratext);
 }
 
 void parseGLL(String nmea) {
@@ -245,11 +264,14 @@ void parseGLL(String nmea) {
   Serial.print(latitude, 8);
   Serial.print(F(" 経度: "));
   Serial.println(longitude, 6);
-  doc["Utc"] = utc;
-  doc["Type"] = "GNGLL";
-  doc["Latitude"] = latitude;
-  doc["Longitude"] = longitude;
-  serializeJson(doc, sendloratext);
+  doc_1["Utc"] = utc;
+  doc_1["Type"] = "GNGGA";
+  serializeJson(doc_1, sendloratext);
+  LoRaCommand(sendloratext);
+  delay(5000);
+  doc_2["Lat"] = latitude;
+  doc_2["Lon"] = longitude;
+  serializeJson(doc_2, sendloratext);
 }
 
 double parseCoordinateLat(String coord) {
